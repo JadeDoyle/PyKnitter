@@ -136,6 +136,9 @@ class KnittingPatternApp:
         zoom_out_button = tk.Button(zoom_frame, text="Zoom Out", command=self.zoom_out)
         zoom_out_button.grid(row=0, column=1, sticky="nsew")
 
+        zoom_to_fit_button = tk.Button(zoom_frame, text="Zoom to Fit", command=self.zoom_to_fit)
+        zoom_to_fit_button.grid(row=1, column=0, columnspan=2, sticky="nsew")
+
         zoom_frame.columnconfigure([0, 1], weight=1)
 
     def set_color(self, color):
@@ -161,6 +164,20 @@ class KnittingPatternApp:
             self.cell_size -= 2
             self.refresh_canvas()
             self.update_grid_dimensions_label()
+
+    def zoom_to_fit(self):
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+
+        max_cell_size_width = canvas_width // self.grid_width
+        max_cell_size_height = canvas_height // self.grid_height
+
+        optimal_cell_size = min(max_cell_size_width, max_cell_size_height)
+
+        self.cell_size = max(5, optimal_cell_size)
+
+        self.refresh_canvas()
+        self.update_grid_dimensions_label()
 
     def choose_color(self):
         color = colorchooser.askcolor(title="Choose color")[1]
