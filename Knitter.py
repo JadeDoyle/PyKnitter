@@ -7,11 +7,11 @@ class KnittingPatternApp:
     def __init__(self, master):
         self.master = master
         self.master.title("Knitting Pattern Designer")
-        self.master.geometry("1040x400")
+        self.master.geometry("1040x440")
 
         self.selected_color = "#aabbcc"
         self.default_width = 32
-        self.default_height = 16
+        self.default_height = 18
         self.max_width = 128
         self.max_height = 128
         self.cell_size = 24
@@ -23,6 +23,15 @@ class KnittingPatternApp:
         self.create_controls()
         self.bind_shortcuts()
         self.generate_grid(self.default_width, self.default_height)
+
+        self.is_dragging = False
+        self.last_dragged_cell = None
+        self.toggled_cells = set()
+
+        self.box_start = None
+        self.box_end = None
+        self.box_mode = False
+        self.previous_rectangle = []
 
     def create_controls(self):
         control_frame = tk.Frame(self.master)
@@ -119,6 +128,17 @@ class KnittingPatternApp:
         palette_frame.pack(fill=tk.X, expand=True)
         self.create_color_palette(palette_frame)
 
+        self.eraser_button = tk.Button(color_frame, text="Eraser", command=lambda: self.set_color("white"))
+        self.eraser_button.pack(fill=tk.X, expand=True)
+
+        self.box_mode_button = tk.Button(color_frame, text="Box Mode", command=self.toggle_box_mode)
+        self.box_mode_button.pack(fill=tk.X, expand=True)
+
+    def set_color(self, color):
+        """Set the selected color."""
+        self.selected_color = color
+        self.choose_color_button.config(bg=color)
+
     def create_color_palette(self, parent):
         colors = [
             ['#EB9DA2', '#F0B884', '#E8E6A5', '#BBE8B5', '#ACBBE8', '#C5ACE8'],  # Lightest
@@ -126,13 +146,11 @@ class KnittingPatternApp:
             ['#B15A5E', '#B87C3D', '#A2A455', '#669E6B', '#6678B3', '#7E5CAD']   # Dark-tone
         ]
 
-        
         for row_index, row_colors in enumerate(colors):
             for col_index, color in enumerate(row_colors):
                 tk.Button(parent, bg=color, command=lambda c=color: self.set_color(c))\
                     .grid(row=row_index, column=col_index, sticky="nsew")
                 parent.grid_columnconfigure(col_index, weight=1)
-
 
     def create_zoom_controls(self, parent):
         zoom_frame = tk.Frame(parent)
@@ -148,10 +166,6 @@ class KnittingPatternApp:
         zoom_to_fit_button.grid(row=1, column=0, columnspan=2, sticky="nsew")
 
         zoom_frame.columnconfigure([0, 1], weight=1)
-
-    def set_color(self, color):
-        self.selected_color = color
-        self.choose_color_button.config(bg=color)
 
     def bind_shortcuts(self):
         self.master.bind("<Control-s>", lambda e: self.save_pattern())
@@ -192,6 +206,15 @@ class KnittingPatternApp:
         if color:
             self.set_color(color)
 
+    def pick_color(self, event):
+        """Pick the color of the right-clicked cell and set it as the selected color."""
+        col = event.x // self.cell_size
+        row = event.y // self.cell_size
+
+        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+            cell_color = self.cells.get((row, col), "white")
+            self.set_color(cell_color)
+
     def handle_generate_grid(self):
         try:
             width = int(self.width_entry.get()) if self.width_entry.get() else self.default_width
@@ -230,20 +253,127 @@ class KnittingPatternApp:
                 cell_id = self.canvas.create_rectangle(x1, y1, x2, y2, fill="white", outline="black")
                 self.cells[(row, col)] = "white"
 
-        self.canvas.bind("<Button-1>", self.toggle_cell)
+        self.canvas.bind("<Button-1>", self.start_drag)
+        self.canvas.bind("<B1-Motion>", self.dragging)
+        self.canvas.bind("<ButtonRelease-1>", self.end_drag)
 
+        self.canvas.bind("<Button-3>", self.pick_color)
+    
         self.grid_dimensions_label.config(text=f"Grid Dimensions: {self.grid_width} x {self.grid_height}")
-
         self.update_grid_dimensions_label()
+        self.save_state_to_history()
 
-    def toggle_cell(self, event):
+    def toggle_box_mode(self):
+        """Toggle between normal drawing mode and box mode, and change the button color when active."""
+        self.box_mode = not self.box_mode
+        if self.box_mode:
+            self.box_mode_button.config(relief=tk.SUNKEN, text="Box Mode (ON)", bg="red", fg="white")
+        else:
+            self.box_mode_button.config(relief=tk.RAISED, text="Box Mode (OFF)", bg="SystemButtonFace", fg="black")
+
+    def start_drag(self, event):
+        """Start painting or drawing a box depending on the mode."""
+        self.is_dragging = True
+        self.last_dragged_cell = None
+        self.toggled_cells.clear()
+
         col = event.x // self.cell_size
         row = event.y // self.cell_size
         if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
-            current_color = self.cells[(row, col)]
-            new_color = self.selected_color if current_color == "white" else "white"
-            self.canvas.itemconfig(self.get_canvas_id(row, col), fill=new_color)
-            self.cells[(row, col)] = new_color
+            if self.box_mode:
+                self.box_start = (row, col)
+            else:
+                self.fill_cell(event)
+
+    def dragging(self, event):
+        """Drag to paint cells or draw a box depending on the mode."""
+        if self.is_dragging:
+            if self.box_mode and self.box_start:
+                self.fill_rectangle(event)
+            elif not self.box_mode:
+                self.fill_cell(event)
+
+    def end_drag(self, event):
+        """End the current drag action, finalizing the box or normal drawing."""
+        self.is_dragging = False
+
+        if self.box_mode and self.box_start:
+            col = event.x // self.cell_size
+            row = event.y // self.cell_size
+            if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+                self.box_end = (row, col)
+
+                start_row, start_col = self.box_start
+                end_row, end_col = self.box_end
+
+                top_left_row = min(start_row, end_row)
+                top_left_col = min(start_col, end_col)
+                bottom_right_row = max(start_row, end_row)
+                bottom_right_col = max(start_col, end_col)
+
+                for r in range(top_left_row, bottom_right_row + 1):
+                    for c in range(top_left_col, bottom_right_col + 1):
+                        self.canvas.itemconfig(self.get_canvas_id(r, c), fill=self.selected_color)
+                        self.cells[(r, c)] = self.selected_color
+
+            self.save_state_to_history()
+
+            self.previous_rectangle = []
+            self.box_start = None
+            self.box_end = None
+        elif not self.box_mode:
+            self.save_state_to_history()
+
+        self.last_dragged_cell = None
+        self.toggled_cells.clear()
+
+    def fill_rectangle(self, event):
+        """Preview the rectangle area from the start to the current drag point."""
+        col = event.x // self.cell_size
+        row = event.y // self.cell_size
+        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+            self.box_end = (row, col)
+
+            start_row, start_col = self.box_start
+            end_row, end_col = self.box_end
+
+            top_left_row = min(start_row, end_row)
+            top_left_col = min(start_col, end_col)
+            bottom_right_row = max(start_row, end_row)
+            bottom_right_col = max(start_col, end_col)
+
+            if self.previous_rectangle:
+                for r, c in self.previous_rectangle:
+                    original_color = self.cells.get((r, c), "white")
+                    self.canvas.itemconfig(self.get_canvas_id(r, c), fill=original_color)
+
+            self.previous_rectangle = []
+            for r in range(top_left_row, bottom_right_row + 1):
+                for c in range(top_left_col, bottom_right_col + 1):
+                    self.previous_rectangle.append((r, c))
+                    self.canvas.itemconfig(self.get_canvas_id(r, c), fill=self.selected_color)
+
+    def fill_cell(self, event):
+        """Fill the cell at the current mouse position with the selected color."""
+        col = event.x // self.cell_size
+        row = event.y // self.cell_size
+
+        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+            current_cell = (row, col)
+
+            if current_cell != self.last_dragged_cell and current_cell not in self.toggled_cells:
+                self.last_dragged_cell = current_cell 
+                self.canvas.itemconfig(self.get_canvas_id(row, col), fill=self.selected_color)
+                self.cells[(row, col)] = self.selected_color 
+                self.toggled_cells.add(current_cell)
+
+    def toggle_cell(self, event):
+        """Toggle the color of a single cell on click."""
+        col = event.x // self.cell_size
+        row = event.y // self.cell_size
+        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+            self.canvas.itemconfig(self.get_canvas_id(row, col), fill=self.selected_color)
+            self.cells[(row, col)] = self.selected_color
             self.save_state_to_history()
 
     def get_canvas_id(self, row, col):
@@ -296,6 +426,10 @@ class KnittingPatternApp:
                 messagebox.showerror("Error", f"An unexpected error occurred: {e}")
 
     def save_state_to_history(self):
+        """Save the current grid state to the history for undo/redo functionality."""
+        if self.history and self.history[-1]["cells"] == self.cells:
+            return
+
         state = {
             "width": self.grid_width,
             "height": self.grid_height,
