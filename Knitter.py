@@ -7,7 +7,7 @@ class KnittingPatternApp:
     def __init__(self, master):
         self.master = master
         self.master.title("Knitting Pattern Designer")
-        self.master.geometry("1040x440")
+        self.master.geometry("1040x520")
 
         self.selected_color = "#aabbcc"
         self.default_width = 32
@@ -33,7 +33,7 @@ class KnittingPatternApp:
         self.box_mode = False
         self.previous_rectangle = []
 
-#Initialization and setup -----------------------
+#Initialization and setup -------------------------------------------------------------------------
 
     def create_controls(self):
         control_frame = tk.Frame(self.master)
@@ -42,6 +42,7 @@ class KnittingPatternApp:
         self.create_save_load_controls(control_frame)
         self.create_grid_controls(control_frame)
         self.create_history_controls(control_frame)
+        self.create_flip_controls(control_frame)
         self.create_grid_resize_controls(control_frame)
         self.create_zoom_controls(control_frame)
         self.create_color_controls(control_frame)
@@ -89,9 +90,21 @@ class KnittingPatternApp:
         for i, (text, cmd) in enumerate(buttons):
             tk.Button(history_frame, text=text, command=cmd).grid(row=0, column=i, sticky="nsew")
 
+    def create_flip_controls(self, parent):
+        flip_frame = tk.Frame(parent)
+        flip_frame.grid(row=6, column=0, columnspan=2, sticky="ew")
+        flip_frame.columnconfigure([0, 1], weight=1)
+
+        buttons = [
+            ("Flip Horizontal", self.flip_horizontal),
+            ("   Flip Vertical  ", self.flip_vertical),
+        ]
+        for i, (text, cmd) in enumerate(buttons):
+            tk.Button(flip_frame, text=text, command=cmd).grid(row=0, column=i, sticky="nsew")
+
     def create_grid_resize_controls(self, parent):
         arrow_frame = tk.Frame(parent)
-        arrow_frame.grid(row=6, column=0, columnspan=2)
+        arrow_frame.grid(row=7, column=0, columnspan=2)
 
         directions = [
             ("↑", lambda: self.modify_grid("add", "row", "top"), 0, 1),
@@ -117,11 +130,11 @@ class KnittingPatternApp:
         tk.Label(arrow_frame, text="Add/Rem").grid(row=1, column=3)
 
         self.grid_dimensions_label = tk.Label(parent, text=f"Grid Dimensions: {self.default_width} x {self.default_height}")
-        self.grid_dimensions_label.grid(row=7, column=0, columnspan=2)
+        self.grid_dimensions_label.grid(row=8, column=0, columnspan=2)
 
     def create_zoom_controls(self, parent):
         zoom_frame = tk.Frame(parent)
-        zoom_frame.grid(row=8, column=0, columnspan=2, sticky="ew")
+        zoom_frame.grid(row=9, column=0, columnspan=2, sticky="ew")
 
         self.zoom_slider = tk.Scale(
             zoom_frame, from_=5, to=50, orient="horizontal",
@@ -135,7 +148,7 @@ class KnittingPatternApp:
 
     def create_color_controls(self, parent):
         color_frame = tk.Frame(parent)
-        color_frame.grid(row=9, column=0, columnspan=2, sticky="ew")
+        color_frame.grid(row=10, column=0, columnspan=2, sticky="ew")
 
         self.choose_color_button = tk.Button(color_frame, text="Choose Color", bg=self.selected_color, command=self.choose_color)
         self.choose_color_button.pack(fill=tk.X, expand=True)
@@ -158,7 +171,7 @@ class KnittingPatternApp:
         self.master.bind("<Control-plus>", lambda e: self.zoom_in())
         self.master.bind("<Control-minus>", lambda e: self.zoom_out())
 
-#Canvas/Grid Management -------------------------
+#Canvas/Grid Management ---------------------------------------------------------------------------
 
     def generate_grid(self, width, height):
         self.grid_width = width
@@ -289,7 +302,33 @@ class KnittingPatternApp:
         zoom_level = (self.cell_size / 20) * 100
         self.grid_dimensions_label.config(text=f"Grid Dimensions: {self.grid_width} x {self.grid_height} | Zoom: {int(zoom_level)}%")
 
-#Drawing/Interaction ----------------------------
+#Flipping/Mirroring -------------------------------------------------------------------------------
+
+    def flip_horizontal(self):
+        new_cells = {}
+    
+        for row in range(self.grid_height):
+            for col in range(self.grid_width):
+                new_col = self.grid_width - col - 1
+                new_cells[(row, new_col)] = self.cells[(row, col)]
+    
+        self.cells = new_cells
+        self.refresh_canvas()
+        self.save_state_to_history()
+
+    def flip_vertical(self):
+        new_cells = {}
+    
+        for row in range(self.grid_height):
+            for col in range(self.grid_width):
+                new_row = self.grid_height - row - 1
+                new_cells[(new_row, col)] = self.cells[(row, col)]
+    
+        self.cells = new_cells
+        self.refresh_canvas()
+        self.save_state_to_history()
+
+#Drawing/Interaction ------------------------------------------------------------------------------
 
     def start_drag(self, event):
         self.is_dragging = True
@@ -405,7 +444,7 @@ class KnittingPatternApp:
         else:
             self.box_mode_button.config(relief=tk.RAISED, text="Box Mode (OFF)", bg="SystemButtonFace", fg="black")
 
-#Undo/Redo --------------------------------------
+#Undo/Redo ----------------------------------------------------------------------------------------
 
     def save_state_to_history(self):
         if self.history and self.history[-1]["cells"] == self.cells:
@@ -436,7 +475,7 @@ class KnittingPatternApp:
         self.cells = copy.deepcopy(state["cells"])
         self.refresh_canvas()
 
-#Save/Load --------------------------------------
+#Save/Load ----------------------------------------------------------------------------------------
 
     def save_pattern(self):
         pattern = {
@@ -476,7 +515,7 @@ class KnittingPatternApp:
             except Exception as e:
                 messagebox.showerror("Error", f"An unexpected error occurred: {e}")
 
-#Color Management -------------------------------
+#Color Management ---------------------------------------------------------------------------------
 
     def set_color(self, color):
         """Set the selected color."""
@@ -485,9 +524,9 @@ class KnittingPatternApp:
 
     def create_color_palette(self, parent):
         colors = [
-            ['#EB9DA2', '#F0B884', '#E8E6A5', '#BBE8B5', '#ACBBE8', '#C5ACE8'],  # Lightest
-            ['#D07479', '#D9975A', '#C6C474', '#85C688', '#889BDE', '#A183D5'],  # Mid-tone
-            ['#B15A5E', '#B87C3D', '#A2A455', '#669E6B', '#6678B3', '#7E5CAD']   # Dark-tone
+            ['#EB9DA2', '#F0B884', '#E8E6A5', '#BBE8B5', '#ACBBE8', '#C5ACE8'],
+            ['#D07479', '#D9975A', '#C6C474', '#85C688', '#889BDE', '#A183D5'],
+            ['#B15A5E', '#B87C3D', '#A2A455', '#669E6B', '#6678B3', '#7E5CAD']
         ]
 
         for row_index, row_colors in enumerate(colors):
@@ -501,7 +540,7 @@ class KnittingPatternApp:
         if color:
             self.set_color(color)
         
-#Zooming ----------------------------------------
+#Zooming ------------------------------------------------------------------------------------------
 
     def on_zoom_slider_change(self, value):
         self.cell_size = int(value)
@@ -513,14 +552,14 @@ class KnittingPatternApp:
             self.cell_size += 2
             self.refresh_canvas()
             self.update_grid_dimensions_label()
-            self.zoom_slider.set(self.cell_size)  # Update the slider
+            self.zoom_slider.set(self.cell_size)
 
     def zoom_out(self):
         if self.cell_size > 5:
             self.cell_size -= 2
             self.refresh_canvas()
             self.update_grid_dimensions_label()
-            self.zoom_slider.set(self.cell_size)  # Update the slider
+            self.zoom_slider.set(self.cell_size)
 
     def zoom_to_fit(self):
         canvas_width = self.canvas.winfo_width()
@@ -534,7 +573,7 @@ class KnittingPatternApp:
         self.cell_size = max(5, optimal_cell_size)
         self.refresh_canvas()
         self.update_grid_dimensions_label()
-        self.zoom_slider.set(self.cell_size)  # Update the slider
+        self.zoom_slider.set(self.cell_size)
 
 if __name__ == "__main__":
     root = tk.Tk()
