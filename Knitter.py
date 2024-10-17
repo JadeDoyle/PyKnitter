@@ -153,13 +153,13 @@ class KnittingPatternApp:
     def zoom_in(self):
         if self.cell_size < 50:
             self.cell_size += 2
-            self.generate_grid(self.grid_width, self.grid_height)
+            self.refresh_canvas()
             self.update_grid_dimensions_label()
 
     def zoom_out(self):
         if self.cell_size > 5:
             self.cell_size -= 2
-            self.generate_grid(self.grid_width, self.grid_height)
+            self.refresh_canvas()
             self.update_grid_dimensions_label()
 
     def choose_color(self):
@@ -359,6 +359,8 @@ class KnittingPatternApp:
                 x2, y2 = x1 + self.cell_size, y1 + self.cell_size
                 cell_color = self.cells.get((row, col), "white")
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill=cell_color, outline="black")
+
+        self.canvas.config(scrollregion=self.canvas.bbox("all"))
         
     def update_grid_dimensions_label(self):
         zoom_level = (self.cell_size / 20) * 100
