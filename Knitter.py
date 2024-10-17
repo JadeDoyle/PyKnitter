@@ -7,14 +7,14 @@ class KnittingPatternApp:
     def __init__(self, master):
         self.master = master
         self.master.title("Knitting Pattern Designer")
-        self.master.geometry("900x330")
+        self.master.geometry("1040x400")
 
         self.selected_color = "#aabbcc"
         self.default_width = 32
         self.default_height = 16
         self.max_width = 128
         self.max_height = 128
-        self.cell_size = 20
+        self.cell_size = 24
 
         self.history = []
         self.redo_stack = []
@@ -120,11 +120,19 @@ class KnittingPatternApp:
         self.create_color_palette(palette_frame)
 
     def create_color_palette(self, parent):
-        colors = ['#EB9DA2', '#F0B884', '#E8E6A5', '#BBE8B5', '#ACBBE8', '#C5ACE8']
-        for i, color in enumerate(colors):
-            tk.Button(parent, bg=color, command=lambda c=color: self.set_color(c))\
-                .grid(row=0, column=i, sticky="nsew")
-            parent.grid_columnconfigure(i, weight=1)
+        colors = [
+            ['#EB9DA2', '#F0B884', '#E8E6A5', '#BBE8B5', '#ACBBE8', '#C5ACE8'],  # Lightest
+            ['#D07479', '#D9975A', '#C6C474', '#85C688', '#889BDE', '#A183D5'],  # Mid-tone
+            ['#B15A5E', '#B87C3D', '#A2A455', '#669E6B', '#6678B3', '#7E5CAD']   # Dark-tone
+        ]
+
+        
+        for row_index, row_colors in enumerate(colors):
+            for col_index, color in enumerate(row_colors):
+                tk.Button(parent, bg=color, command=lambda c=color: self.set_color(c))\
+                    .grid(row=row_index, column=col_index, sticky="nsew")
+                parent.grid_columnconfigure(col_index, weight=1)
+
 
     def create_zoom_controls(self, parent):
         zoom_frame = tk.Frame(parent)
