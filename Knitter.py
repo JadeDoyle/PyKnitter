@@ -33,6 +33,8 @@ class KnittingPatternApp:
         self.box_mode = False
         self.previous_rectangle = []
 
+#Initialization and setup -----------------------
+
     def create_controls(self):
         control_frame = tk.Frame(self.master)
         control_frame.grid(row=0, column=0, sticky="ns")
@@ -117,6 +119,20 @@ class KnittingPatternApp:
         self.grid_dimensions_label = tk.Label(parent, text=f"Grid Dimensions: {self.default_width} x {self.default_height}")
         self.grid_dimensions_label.grid(row=7, column=0, columnspan=2)
 
+    def create_zoom_controls(self, parent):
+        zoom_frame = tk.Frame(parent)
+        zoom_frame.grid(row=8, column=0, columnspan=2, sticky="ew")
+
+        self.zoom_slider = tk.Scale(
+            zoom_frame, from_=5, to=50, orient="horizontal",
+            command=self.on_zoom_slider_change
+        )
+        self.zoom_slider.set(self.cell_size)
+        self.zoom_slider.pack(fill=tk.X, expand=True)
+
+        zoom_to_fit_button = tk.Button(zoom_frame, text="Zoom to Fit", command=self.zoom_to_fit)
+        zoom_to_fit_button.pack(fill=tk.X, expand=True)
+
     def create_color_controls(self, parent):
         color_frame = tk.Frame(parent)
         color_frame.grid(row=9, column=0, columnspan=2, sticky="ew")
@@ -134,39 +150,6 @@ class KnittingPatternApp:
         self.box_mode_button = tk.Button(color_frame, text="Box Mode", command=self.toggle_box_mode)
         self.box_mode_button.pack(fill=tk.X, expand=True)
 
-    def set_color(self, color):
-        """Set the selected color."""
-        self.selected_color = color
-        self.choose_color_button.config(bg=color)
-
-    def create_color_palette(self, parent):
-        colors = [
-            ['#EB9DA2', '#F0B884', '#E8E6A5', '#BBE8B5', '#ACBBE8', '#C5ACE8'],  # Lightest
-            ['#D07479', '#D9975A', '#C6C474', '#85C688', '#889BDE', '#A183D5'],  # Mid-tone
-            ['#B15A5E', '#B87C3D', '#A2A455', '#669E6B', '#6678B3', '#7E5CAD']   # Dark-tone
-        ]
-
-        for row_index, row_colors in enumerate(colors):
-            for col_index, color in enumerate(row_colors):
-                tk.Button(parent, bg=color, command=lambda c=color: self.set_color(c))\
-                    .grid(row=row_index, column=col_index, sticky="nsew")
-                parent.grid_columnconfigure(col_index, weight=1)
-
-    def create_zoom_controls(self, parent):
-        zoom_frame = tk.Frame(parent)
-        zoom_frame.grid(row=8, column=0, columnspan=2, sticky="ew")
-
-        zoom_in_button = tk.Button(zoom_frame, text="Zoom In", command=self.zoom_in)
-        zoom_in_button.grid(row=0, column=0, sticky="nsew")
-
-        zoom_out_button = tk.Button(zoom_frame, text="Zoom Out", command=self.zoom_out)
-        zoom_out_button.grid(row=0, column=1, sticky="nsew")
-
-        zoom_to_fit_button = tk.Button(zoom_frame, text="Zoom to Fit", command=self.zoom_to_fit)
-        zoom_to_fit_button.grid(row=1, column=0, columnspan=2, sticky="nsew")
-
-        zoom_frame.columnconfigure([0, 1], weight=1)
-
     def bind_shortcuts(self):
         self.master.bind("<Control-s>", lambda e: self.save_pattern())
         self.master.bind("<Control-z>", lambda e: self.undo())
@@ -175,56 +158,7 @@ class KnittingPatternApp:
         self.master.bind("<Control-plus>", lambda e: self.zoom_in())
         self.master.bind("<Control-minus>", lambda e: self.zoom_out())
 
-    def zoom_in(self):
-        if self.cell_size < 50:
-            self.cell_size += 2
-            self.refresh_canvas()
-            self.update_grid_dimensions_label()
-
-    def zoom_out(self):
-        if self.cell_size > 5:
-            self.cell_size -= 2
-            self.refresh_canvas()
-            self.update_grid_dimensions_label()
-
-    def zoom_to_fit(self):
-        canvas_width = self.canvas.winfo_width()
-        canvas_height = self.canvas.winfo_height()
-
-        max_cell_size_width = canvas_width // self.grid_width
-        max_cell_size_height = canvas_height // self.grid_height
-
-        optimal_cell_size = min(max_cell_size_width, max_cell_size_height)
-
-        self.cell_size = max(5, optimal_cell_size)
-
-        self.refresh_canvas()
-        self.update_grid_dimensions_label()
-
-    def choose_color(self):
-        color = colorchooser.askcolor(title="Choose color")[1]
-        if color:
-            self.set_color(color)
-
-    def pick_color(self, event):
-        """Pick the color of the right-clicked cell and set it as the selected color."""
-        col = event.x // self.cell_size
-        row = event.y // self.cell_size
-
-        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
-            cell_color = self.cells.get((row, col), "white")
-            self.set_color(cell_color)
-
-    def handle_generate_grid(self):
-        try:
-            width = int(self.width_entry.get()) if self.width_entry.get() else self.default_width
-            height = int(self.height_entry.get()) if self.height_entry.get() else self.default_height
-            if width > 0 and height > 0 and width <= self.max_width and height <= self.max_height:
-                self.generate_grid(width, height)
-            else:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter valid positive integers for grid dimensions (max 128x128).")
+#Canvas/Grid Management -------------------------
 
     def generate_grid(self, width, height):
         self.grid_width = width
@@ -263,197 +197,27 @@ class KnittingPatternApp:
         self.update_grid_dimensions_label()
         self.save_state_to_history()
 
-    def toggle_box_mode(self):
-        """Toggle between normal drawing mode and box mode, and change the button color when active."""
-        self.box_mode = not self.box_mode
-        if self.box_mode:
-            self.box_mode_button.config(relief=tk.SUNKEN, text="Box Mode (ON)", bg="red", fg="white")
-        else:
-            self.box_mode_button.config(relief=tk.RAISED, text="Box Mode (OFF)", bg="SystemButtonFace", fg="black")
-
-    def start_drag(self, event):
-        """Start painting or drawing a box depending on the mode."""
-        self.is_dragging = True
-        self.last_dragged_cell = None
-        self.toggled_cells.clear()
-
-        col = event.x // self.cell_size
-        row = event.y // self.cell_size
-        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
-            if self.box_mode:
-                self.box_start = (row, col)
-            else:
-                self.fill_cell(event)
-
-    def dragging(self, event):
-        """Drag to paint cells or draw a box depending on the mode."""
-        if self.is_dragging:
-            if self.box_mode and self.box_start:
-                self.fill_rectangle(event)
-            elif not self.box_mode:
-                self.fill_cell(event)
-
-    def end_drag(self, event):
-        """End the current drag action, finalizing the box or normal drawing."""
-        self.is_dragging = False
-
-        if self.box_mode and self.box_start:
-            col = event.x // self.cell_size
-            row = event.y // self.cell_size
-            if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
-                self.box_end = (row, col)
-
-                start_row, start_col = self.box_start
-                end_row, end_col = self.box_end
-
-                top_left_row = min(start_row, end_row)
-                top_left_col = min(start_col, end_col)
-                bottom_right_row = max(start_row, end_row)
-                bottom_right_col = max(start_col, end_col)
-
-                for r in range(top_left_row, bottom_right_row + 1):
-                    for c in range(top_left_col, bottom_right_col + 1):
-                        self.canvas.itemconfig(self.get_canvas_id(r, c), fill=self.selected_color)
-                        self.cells[(r, c)] = self.selected_color
-
-            self.save_state_to_history()
-
-            self.previous_rectangle = []
-            self.box_start = None
-            self.box_end = None
-        elif not self.box_mode:
-            self.save_state_to_history()
-
-        self.last_dragged_cell = None
-        self.toggled_cells.clear()
-
-    def fill_rectangle(self, event):
-        """Preview the rectangle area from the start to the current drag point."""
-        col = event.x // self.cell_size
-        row = event.y // self.cell_size
-        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
-            self.box_end = (row, col)
-
-            start_row, start_col = self.box_start
-            end_row, end_col = self.box_end
-
-            top_left_row = min(start_row, end_row)
-            top_left_col = min(start_col, end_col)
-            bottom_right_row = max(start_row, end_row)
-            bottom_right_col = max(start_col, end_col)
-
-            if self.previous_rectangle:
-                for r, c in self.previous_rectangle:
-                    original_color = self.cells.get((r, c), "white")
-                    self.canvas.itemconfig(self.get_canvas_id(r, c), fill=original_color)
-
-            self.previous_rectangle = []
-            for r in range(top_left_row, bottom_right_row + 1):
-                for c in range(top_left_col, bottom_right_col + 1):
-                    self.previous_rectangle.append((r, c))
-                    self.canvas.itemconfig(self.get_canvas_id(r, c), fill=self.selected_color)
-
-    def fill_cell(self, event):
-        """Fill the cell at the current mouse position with the selected color."""
-        col = event.x // self.cell_size
-        row = event.y // self.cell_size
-
-        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
-            current_cell = (row, col)
-
-            if current_cell != self.last_dragged_cell and current_cell not in self.toggled_cells:
-                self.last_dragged_cell = current_cell 
-                self.canvas.itemconfig(self.get_canvas_id(row, col), fill=self.selected_color)
-                self.cells[(row, col)] = self.selected_color 
-                self.toggled_cells.add(current_cell)
-
-    def toggle_cell(self, event):
-        """Toggle the color of a single cell on click."""
-        col = event.x // self.cell_size
-        row = event.y // self.cell_size
-        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
-            self.canvas.itemconfig(self.get_canvas_id(row, col), fill=self.selected_color)
-            self.cells[(row, col)] = self.selected_color
-            self.save_state_to_history()
-
-    def get_canvas_id(self, row, col):
-        return self.canvas.find_closest(col * self.cell_size + 1, row * self.cell_size + 1)[0]
-
-    def reset_grid(self):
-        if messagebox.askyesno("Confirm Reset", "Are you sure you want to reset the grid?"):
-            for row in range(self.grid_height):
-                for col in range(self.grid_width):
-                    self.canvas.itemconfig(self.get_canvas_id(row, col), fill="white")
-                    self.cells[(row, col)] = "white"
-            self.save_state_to_history()
-
-    def save_pattern(self):
-        pattern = {
-            "width": self.grid_width,
-            "height": self.grid_height,
-            "selected_color": self.selected_color,
-            "cells": {f"{row},{col}": color for (row, col), color in self.cells.items()}
-        }
-        file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
-        if file_path:
-            with open(file_path, 'w') as file:
-                json.dump(pattern, file)
-
-    def load_pattern(self):
-        file_path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
-        if file_path:
-            try:
-                with open(file_path, 'r') as file:
-                    pattern = json.load(file)
-
-                self.selected_color = pattern.get("selected_color", self.selected_color)
-                self.choose_color_button.config(bg=self.selected_color)
-                width = pattern.get("width", self.default_width)
-                height = pattern.get("height", self.default_height)
-
+    def handle_generate_grid(self):
+        try:
+            width = int(self.width_entry.get()) if self.width_entry.get() else self.default_width
+            height = int(self.height_entry.get()) if self.height_entry.get() else self.default_height
+            if width > 0 and height > 0 and width <= self.max_width and height <= self.max_height:
                 self.generate_grid(width, height)
+            else:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Invalid Input", "Please enter valid positive integers for grid dimensions (max 128x128).")
 
-                for key, color in pattern.get("cells", {}).items():
-                    row, col = map(int, key.split(','))
-                    if (row, col) in self.cells:
-                        self.canvas.itemconfig(self.get_canvas_id(row, col), fill=color)
-                        self.cells[(row, col)] = color
+    def refresh_canvas(self):
+        self.canvas.delete("all")
+        for row in range(self.grid_height):
+            for col in range(self.grid_width):
+                x1, y1 = col * self.cell_size, row * self.cell_size
+                x2, y2 = x1 + self.cell_size, y1 + self.cell_size
+                cell_color = self.cells.get((row, col), "white")
+                self.canvas.create_rectangle(x1, y1, x2, y2, fill=cell_color, outline="black")
 
-                self.save_state_to_history()
-            except json.JSONDecodeError as e:
-                messagebox.showerror("Invalid File", f"Failed to load the pattern. The file is not valid JSON.\nError: {e}")
-            except Exception as e:
-                messagebox.showerror("Error", f"An unexpected error occurred: {e}")
-
-    def save_state_to_history(self):
-        """Save the current grid state to the history for undo/redo functionality."""
-        if self.history and self.history[-1]["cells"] == self.cells:
-            return
-
-        state = {
-            "width": self.grid_width,
-            "height": self.grid_height,
-            "cells": copy.deepcopy(self.cells)
-        }
-        self.history.append(state)
-        self.redo_stack.clear()
-
-    def undo(self):
-        if len(self.history) > 1:
-            self.redo_stack.append(self.history.pop())
-            self.restore_from_history(self.history[-1])
-
-    def redo(self):
-        if self.redo_stack:
-            next_state = self.redo_stack.pop()
-            self.history.append(next_state)
-            self.restore_from_history(next_state)
-
-    def restore_from_history(self, state):
-        self.grid_width = state["width"]
-        self.grid_height = state["height"]
-        self.cells = copy.deepcopy(state["cells"])
-        self.refresh_canvas()
+        self.canvas.config(scrollregion=self.canvas.bbox("all"))
 
     def modify_grid(self, operation, axis, position):
         if axis == "row":
@@ -510,20 +274,267 @@ class KnittingPatternApp:
         self.update_grid_dimensions_label()
         self.save_state_to_history()
 
-    def refresh_canvas(self):
-        self.canvas.delete("all")
-        for row in range(self.grid_height):
-            for col in range(self.grid_width):
-                x1, y1 = col * self.cell_size, row * self.cell_size
-                x2, y2 = x1 + self.cell_size, y1 + self.cell_size
-                cell_color = self.cells.get((row, col), "white")
-                self.canvas.create_rectangle(x1, y1, x2, y2, fill=cell_color, outline="black")
+    def reset_grid(self):
+        if messagebox.askyesno("Confirm Reset", "Are you sure you want to reset the grid?"):
+            for row in range(self.grid_height):
+                for col in range(self.grid_width):
+                    self.canvas.itemconfig(self.get_canvas_id(row, col), fill="white")
+                    self.cells[(row, col)] = "white"
+            self.save_state_to_history()
 
-        self.canvas.config(scrollregion=self.canvas.bbox("all"))
-        
+    def get_canvas_id(self, row, col):
+        return self.canvas.find_closest(col * self.cell_size + 1, row * self.cell_size + 1)[0]
+
     def update_grid_dimensions_label(self):
         zoom_level = (self.cell_size / 20) * 100
         self.grid_dimensions_label.config(text=f"Grid Dimensions: {self.grid_width} x {self.grid_height} | Zoom: {int(zoom_level)}%")
+
+#Drawing/Interaction ----------------------------
+
+    def start_drag(self, event):
+        self.is_dragging = True
+        self.last_dragged_cell = None
+        self.toggled_cells.clear()
+
+        col = event.x // self.cell_size
+        row = event.y // self.cell_size
+        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+            if self.box_mode:
+                self.box_start = (row, col)
+            else:
+                self.fill_cell(event)
+
+    def dragging(self, event):
+        if self.is_dragging:
+            if self.box_mode and self.box_start:
+                self.fill_rectangle(event)
+            elif not self.box_mode:
+                self.fill_cell(event)
+
+    def end_drag(self, event):
+        self.is_dragging = False
+
+        if self.box_mode and self.box_start:
+            col = event.x // self.cell_size
+            row = event.y // self.cell_size
+            if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+                self.box_end = (row, col)
+
+                start_row, start_col = self.box_start
+                end_row, end_col = self.box_end
+
+                top_left_row = min(start_row, end_row)
+                top_left_col = min(start_col, end_col)
+                bottom_right_row = max(start_row, end_row)
+                bottom_right_col = max(start_col, end_col)
+
+                for r in range(top_left_row, bottom_right_row + 1):
+                    for c in range(top_left_col, bottom_right_col + 1):
+                        self.canvas.itemconfig(self.get_canvas_id(r, c), fill=self.selected_color)
+                        self.cells[(r, c)] = self.selected_color
+
+            self.save_state_to_history()
+
+            self.previous_rectangle = []
+            self.box_start = None
+            self.box_end = None
+        elif not self.box_mode:
+            self.save_state_to_history()
+
+        self.last_dragged_cell = None
+        self.toggled_cells.clear()
+
+    def fill_rectangle(self, event):
+        col = event.x // self.cell_size
+        row = event.y // self.cell_size
+        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+            self.box_end = (row, col)
+
+            start_row, start_col = self.box_start
+            end_row, end_col = self.box_end
+
+            top_left_row = min(start_row, end_row)
+            top_left_col = min(start_col, end_col)
+            bottom_right_row = max(start_row, end_row)
+            bottom_right_col = max(start_col, end_col)
+
+            if self.previous_rectangle:
+                for r, c in self.previous_rectangle:
+                    original_color = self.cells.get((r, c), "white")
+                    self.canvas.itemconfig(self.get_canvas_id(r, c), fill=original_color)
+
+            self.previous_rectangle = []
+            for r in range(top_left_row, bottom_right_row + 1):
+                for c in range(top_left_col, bottom_right_col + 1):
+                    self.previous_rectangle.append((r, c))
+                    self.canvas.itemconfig(self.get_canvas_id(r, c), fill=self.selected_color)
+
+    def fill_cell(self, event):
+        col = event.x // self.cell_size
+        row = event.y // self.cell_size
+
+        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+            current_cell = (row, col)
+
+            if current_cell != self.last_dragged_cell and current_cell not in self.toggled_cells:
+                self.last_dragged_cell = current_cell 
+                self.canvas.itemconfig(self.get_canvas_id(row, col), fill=self.selected_color)
+                self.cells[(row, col)] = self.selected_color 
+                self.toggled_cells.add(current_cell)
+
+    def toggle_cell(self, event):
+        col = event.x // self.cell_size
+        row = event.y // self.cell_size
+        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+            self.canvas.itemconfig(self.get_canvas_id(row, col), fill=self.selected_color)
+            self.cells[(row, col)] = self.selected_color
+            self.save_state_to_history()
+
+    def pick_color(self, event):
+        col = event.x // self.cell_size
+        row = event.y // self.cell_size
+
+        if 0 <= col < self.grid_width and 0 <= row < self.grid_height:
+            cell_color = self.cells.get((row, col), "white")
+            self.set_color(cell_color)
+
+    def toggle_box_mode(self):
+        self.box_mode = not self.box_mode
+        if self.box_mode:
+            self.box_mode_button.config(relief=tk.SUNKEN, text="Box Mode (ON)", bg="red", fg="white")
+        else:
+            self.box_mode_button.config(relief=tk.RAISED, text="Box Mode (OFF)", bg="SystemButtonFace", fg="black")
+
+#Undo/Redo --------------------------------------
+
+    def save_state_to_history(self):
+        if self.history and self.history[-1]["cells"] == self.cells:
+            return
+
+        state = {
+            "width": self.grid_width,
+            "height": self.grid_height,
+            "cells": copy.deepcopy(self.cells)
+        }
+        self.history.append(state)
+        self.redo_stack.clear()
+
+    def undo(self):
+        if len(self.history) > 1:
+            self.redo_stack.append(self.history.pop())
+            self.restore_from_history(self.history[-1])
+
+    def redo(self):
+        if self.redo_stack:
+            next_state = self.redo_stack.pop()
+            self.history.append(next_state)
+            self.restore_from_history(next_state)
+
+    def restore_from_history(self, state):
+        self.grid_width = state["width"]
+        self.grid_height = state["height"]
+        self.cells = copy.deepcopy(state["cells"])
+        self.refresh_canvas()
+
+#Save/Load --------------------------------------
+
+    def save_pattern(self):
+        pattern = {
+            "width": self.grid_width,
+            "height": self.grid_height,
+            "selected_color": self.selected_color,
+            "cells": {f"{row},{col}": color for (row, col), color in self.cells.items()}
+        }
+        file_path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
+        if file_path:
+            with open(file_path, 'w') as file:
+                json.dump(pattern, file)
+
+    def load_pattern(self):
+        file_path = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
+        if file_path:
+            try:
+                with open(file_path, 'r') as file:
+                    pattern = json.load(file)
+
+                self.selected_color = pattern.get("selected_color", self.selected_color)
+                self.choose_color_button.config(bg=self.selected_color)
+                width = pattern.get("width", self.default_width)
+                height = pattern.get("height", self.default_height)
+
+                self.generate_grid(width, height)
+
+                for key, color in pattern.get("cells", {}).items():
+                    row, col = map(int, key.split(','))
+                    if (row, col) in self.cells:
+                        self.canvas.itemconfig(self.get_canvas_id(row, col), fill=color)
+                        self.cells[(row, col)] = color
+
+                self.save_state_to_history()
+            except json.JSONDecodeError as e:
+                messagebox.showerror("Invalid File", f"Failed to load the pattern. The file is not valid JSON.\nError: {e}")
+            except Exception as e:
+                messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+
+#Color Management -------------------------------
+
+    def set_color(self, color):
+        """Set the selected color."""
+        self.selected_color = color
+        self.choose_color_button.config(bg=color)
+
+    def create_color_palette(self, parent):
+        colors = [
+            ['#EB9DA2', '#F0B884', '#E8E6A5', '#BBE8B5', '#ACBBE8', '#C5ACE8'],  # Lightest
+            ['#D07479', '#D9975A', '#C6C474', '#85C688', '#889BDE', '#A183D5'],  # Mid-tone
+            ['#B15A5E', '#B87C3D', '#A2A455', '#669E6B', '#6678B3', '#7E5CAD']   # Dark-tone
+        ]
+
+        for row_index, row_colors in enumerate(colors):
+            for col_index, color in enumerate(row_colors):
+                tk.Button(parent, bg=color, command=lambda c=color: self.set_color(c))\
+                    .grid(row=row_index, column=col_index, sticky="nsew")
+                parent.grid_columnconfigure(col_index, weight=1)
+
+    def choose_color(self):
+        color = colorchooser.askcolor(title="Choose color")[1]
+        if color:
+            self.set_color(color)
+        
+#Zooming ----------------------------------------
+
+    def on_zoom_slider_change(self, value):
+        self.cell_size = int(value)
+        self.refresh_canvas()
+        self.update_grid_dimensions_label()
+
+    def zoom_in(self):
+        if self.cell_size < 50:
+            self.cell_size += 2
+            self.refresh_canvas()
+            self.update_grid_dimensions_label()
+            self.zoom_slider.set(self.cell_size)  # Update the slider
+
+    def zoom_out(self):
+        if self.cell_size > 5:
+            self.cell_size -= 2
+            self.refresh_canvas()
+            self.update_grid_dimensions_label()
+            self.zoom_slider.set(self.cell_size)  # Update the slider
+
+    def zoom_to_fit(self):
+        canvas_width = self.canvas.winfo_width()
+        canvas_height = self.canvas.winfo_height()
+
+        max_cell_size_width = canvas_width // self.grid_width
+        max_cell_size_height = canvas_height // self.grid_height
+
+        optimal_cell_size = min(max_cell_size_width, max_cell_size_height)
+
+        self.cell_size = max(5, optimal_cell_size)
+        self.refresh_canvas()
+        self.update_grid_dimensions_label()
+        self.zoom_slider.set(self.cell_size)  # Update the slider
 
 if __name__ == "__main__":
     root = tk.Tk()
